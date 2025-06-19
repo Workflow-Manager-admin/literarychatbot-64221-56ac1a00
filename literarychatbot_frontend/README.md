@@ -8,6 +8,15 @@ This project provides a minimal React template with a clean, modern UI and minim
 - **Modern UI**: Clean, responsive design with KAVIA brand styling
 - **Fast**: Minimal dependencies for quick loading times
 - **Simple**: Easy to understand and modify
+## Gemini 1.5 Flash Chat API Integration
+
+The LiteraryChatBot now uses **Gemini 1.5 Flash** from Google AI for generating chat responses.  
+To use the chatbot, **you must provide a Google Gemini API Key** as `REACT_APP_GEMINI_API_KEY` in your environment or config.
+
+Replace any references to OpenAI keys/configs with your Gemini API setup:
+```
+REACT_APP_GEMINI_API_KEY=your_google_gemini_api_key_here
+```
 
 ## Important Note: Babel Configuration
 

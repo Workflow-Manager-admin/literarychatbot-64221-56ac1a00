@@ -229,27 +229,75 @@ function LiteraryChatBot() {
     return messages;
   }
 
-  // -- API Integration: OpenAI Chat --
+  // -- API Integration: Gemini 1.5 Flash via Google API --
+  /**
+   * PUBLIC_INTERFACE
+   * getBotReply for LiteraryChatBot
+   * Uses Gemini 1.5 Flash generateContent endpoint from Google AI API
+   * API key provided by user via env/config (REACT_APP_GEMINI_API_KEY)
+   * Docs: https://ai.google.dev/gemini/docs/api/reference/rest/v1/projects.locations.publishers.models:generateContent
+   */
   async function getBotReply(char, chatHistory) {
-    // NOTE: For demo, expects REACT_APP_OPENAI_API_KEY in env or mock API. You need to provide your OpenAI API key!
-    const OPENAI_API_KEY = (window?.env?.REACT_APP_OPENAI_API_KEY) || process.env.REACT_APP_OPENAI_API_KEY;
-    if (!OPENAI_API_KEY) throw new Error("Missing OpenAI API Key");
-    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-3.5-turbo",
-        messages: getMessageHistory(chatHistory, char),
-        max_tokens: 350,
+    // User should provide: REACT_APP_GEMINI_API_KEY in their env/config!
+    const GEMINI_API_KEY = (window?.env?.REACT_APP_GEMINI_API_KEY) || process.env.REACT_APP_GEMINI_API_KEY;
+    if (!GEMINI_API_KEY) throw new Error("Missing Gemini API Key (REACT_APP_GEMINI_API_KEY)");
+    
+    // Gemini prompt & chat turns
+    function geminiFromHistory(chatHistory, char) {
+      // Gemini expects: [{role:'user', parts:[{text:"..."}]}, ...]
+      const turns = [
+        { role: "user", parts: [{ text: char.prompt }] }
+      ];
+      chatHistory.forEach((msg) => {
+        if (msg.fromBot) {
+          turns.push({ role: "model", parts: [{ text: msg.message }] });
+        } else {
+          turns.push({ role: "user", parts: [{ text: msg.message }] });
+        }
+      });
+      return turns;
+    }
+
+    // API endpoint for Gemini 1.5 Flash (latest as per docs)
+    const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+    const reqBody = {
+      contents: geminiFromHistory(chatHistory, char),
+      generationConfig: {
+        maxOutputTokens: 350,
         temperature: char.id === "dracula" ? 0.85 : 0.7,
-      }),
-    });
-    if (!resp.ok) throw new Error("OpenAI API error");
-    const data = await resp.json();
-    return data.choices?.[0]?.message?.content?.trim() || "[No reply received]";
+      }
+    };
+
+    try {
+      const resp = await fetch(`${GEMINI_ENDPOINT}?key=${GEMINI_API_KEY}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(reqBody)
+      });
+
+      if (!resp.ok) {
+        let msg = `Gemini API error: ${resp.status}`;
+        try {
+          const errData = await resp.json();
+          msg += errData.error?.message ? ` - ${errData.error.message}` : "";
+        } catch {
+          // fallback: no JSON
+        }
+        throw new Error(msg);
+      }
+
+      const data = await resp.json();
+      // Gemini returns: candidates[0].content.parts[0].text
+      return (
+        data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ||
+        "[No reply received]"
+      );
+    } catch (err) {
+      // Errors handled in the caller
+      throw err;
+    }
   }
 
   // Helper: Greeting variants
